@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Batch-wise Timetable</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        table { width: 80%; border-collapse: collapse; margin: 10px 0; }
+        th, td { border: 1px solid black; padding: 8px; text-align: center; }
+        th { background: lightblue; }
+        .batch-title { font-weight: bold; font-size: 20px; margin-top: 30px; }
+        button { margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+<h2>Upload CSV File</h2>
+<input type="file" id="csvFile" accept=".csv">
+<div id="tables"></div>
+
+<script>
+document.getElementById("csvFile").addEventListener("change", function () {
+    Papa.parse(this.files[0], {
+        header: true,
+        skipEmptyLines: true,
+        complete: function (results) {
+            processCSV(results.data, results.meta.fields);
+        }
+    });
+});
+
+// Helper to clean values
+function clean(str) {
+    return (str || '').toString().trim();
+}
+
+function processCSV(data, fields) {
+    // Map Excel columns to expected ones
+    const colMap = {
+        batch: fields.find(f => f.toLowerCase().includes('batch')),
+        day: fields.find(f => f.toLowerCase().includes('day')),
+        session: fields.find(f => f.toLowerCase().includes('session')),
+        course: fields.find(f => f.toLowerCase().includes('course')),
+        room: fields.find(f => f.toLowerCase().includes('room')),
+        faculty: fields.find(f => f.toLowerCase().includes('faculty'))
+    };
+
+    if (!colMap.batch || !colMap.day || !colMap.session || !colMap.course || !colMap.room || !colMap.faculty) {
+        alert("CSV missing required columns. Please check headers.");
+        return;
+    }
+
+    const timetable = {};
+
+    data.forEach(row => {
+        const batch = clean(row[colMap.batch]);
+        const day = clean(row[colMap.day]);
+        const session = clean(row[colMap.session]);
+        const course = clean(row[colMap.course]);
+        const room = clean(row[colMap.room]);
+        const faculty = clean(row[colMap.faculty]);
+
+        if (!batch || !day || !session) return;
+
+        if (!timetable[batch]) timetable[batch] = {};
+        if (!timetable[batch][day]) timetable[batch][day] = { FN: "", AN: "" };
+
+        timetable[batch][day][session] = `${course}<br>Room: ${room}<br>Faculty: ${faculty}`;
+    });
+
+    buildTables(timetable);
+}
+
+function buildTables(timetable) {
+    const container = document.getElementById("tables");
+    container.innerHTML = "";
+    const days = ["MON","TUE","WED","THU","FRI","SAT"];
+
+    for (const batch in timetable) {
+        const wrapper = document.createElement("div");
+        wrapper.style.marginBottom = "40px";
+
+        const title = document.createElement("div");
+        title.className = "batch-title";
+        title.innerHTML = `Batch: ${batch}`;
+
+        const btn = document.createElement("button");
+        btn.innerHTML = "Print This Timetable";
+        btn.onclick = () => printTable(batch);
+
+        const table = document.createElement("table");
+        table.id = `table_${batch}`;
+
+        let html = `<tr>
+                        <th>DAY</th>
+                        <th>FN</th>
+                        <th rowspan="7">L<br>U<br>N<br>C<br>H</th>
+                        <th>AN</th>
+                    </tr>`;
+
+        days.forEach(day => {
+            const fn = timetable[batch][day]?.FN || "";
+            const an = timetable[batch][day]?.AN || "";
+            html += `<tr>
+                        <td>${day}</td>
+                        <td>${fn}</td>
+                        <td>${an}</td>
+                    </tr>`;
+        });
+
+        table.innerHTML = html;
+        wrapper.appendChild(title);
+        wrapper.appendChild(btn);
+        wrapper.appendChild(table);
+        container.appendChild(wrapper);
+    }
+}
+
+function printTable(batch) {
+    const tableHTML = document.getElementById(`table_${batch}`).outerHTML;
+    const printWindow = window.open("", "", "width=900,height=600");
+    printWindow.document.write(`
+        <html>
+        <head>
+            <title>Print</title>
+            <style>
+                table { width: 100%; border-collapse: collapse; }
+                th, td { border: 1px solid black; padding: 8px; text-align: center; }
+                th { background: lightblue; }
+            </style>
+        </head>
+        <body>
+            <h2>Batch: ${batch}</h2>
+            ${tableHTML}
+        </body>
+        </html>
+    `);
+    printWindow.document.close();
+    printWindow.print();
+}
+</script>
+
+</body>
+</html>
